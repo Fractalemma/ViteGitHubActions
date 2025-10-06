@@ -1,0 +1,80 @@
+name: Deploy Vite App to EC2
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '20'
+  
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: my-vite-app/package-lock.json
+
+    - name: Install dependencies
+      working-directory: ./my-vite-app
+      run: npm ci
+
+    - name: Build Vite app
+      working-directory: ./my-vite-app
+      run: npm run build
+
+    - name: Create deployment archive
+      working-directory: ./my-vite-app
+      run: |
+        cd dist
+        tar -czf ../vite-build.tar.gz .
+        cd ..
+        echo "Build size: $(du -h vite-build.tar.gz | cut -f1)"
+
+    - name: Setup SSH key
+      if: github.ref == 'refs/heads/main'
+      uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+
+    - name: Deploy to EC2
+      if: github.ref == 'refs/heads/main'
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+        EC2_USER: ${{ secrets.EC2_USER }}
+      run: |
+        # Copy deployment script to server
+        scp -o StrictHostKeyChecking=no ./scripts/deploy.sh $EC2_USER@$EC2_HOST:/tmp/
+        
+        # Copy build archive to server
+        scp -o StrictHostKeyChecking=no ./my-vite-app/vite-build.tar.gz $EC2_USER@$EC2_HOST:/tmp/
+        
+        # Execute deployment script
+        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
+
+    - name: Health check
+      if: github.ref == 'refs/heads/main'
+      env:
+        EC2_HOST: ${{ secrets.EC2_HOST }}
+      run: |
+        # Wait a moment for deployment to complete
+        sleep 10
+        
+        # Check if the website is accessible
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://$EC2_HOST)
+        if [ $response -eq 200 ]; then
+          echo "✅ Deployment successful! Website is accessible."
+          echo "🌐 Visit: http://$EC2_HOST"
+        else
+          echo "❌ Deployment may have failed. HTTP status: $response"
+          exit 1
+        fi
