@@ -46,12 +46,13 @@ jobs:
         # Create SSH directory
         mkdir -p ~/.ssh
         
-        # Create the SSH key file with proper formatting
-        cat > ~/.ssh/deploy_key << 'EOF'
-        ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-        EOF
+        # Create the SSH key file using base64 encoding to avoid format issues
+        echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" | base64 -d > ~/.ssh/deploy_key 2>/dev/null || {
+          # If base64 decode fails, try direct approach with better formatting
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        }
         
-        # Ensure proper line endings and permissions
+        # Ensure proper permissions
         chmod 600 ~/.ssh/deploy_key
         
         # Verify the key file format
@@ -59,8 +60,21 @@ jobs:
         echo "SSH key first line: $(head -n1 ~/.ssh/deploy_key)"
         echo "SSH key last line: $(tail -n1 ~/.ssh/deploy_key)"
         
-        # Test the SSH key format
-        ssh-keygen -l -f ~/.ssh/deploy_key || echo "Warning: SSH key format may be invalid"
+        # Test the SSH key format and show more details if it fails
+        if ! ssh-keygen -l -f ~/.ssh/deploy_key; then
+          echo "❌ SSH key format is invalid!"
+          echo "Key file contents (first 3 lines):"
+          head -n3 ~/.ssh/deploy_key
+          echo "..."
+          echo "Key file contents (last 3 lines):"
+          tail -n3 ~/.ssh/deploy_key
+          echo ""
+          echo "🔧 Please ensure your DEPLOY_SSH_PRIVATE_KEY secret contains:"
+          echo "1. The complete private key from -----BEGIN to -----END"
+          echo "2. No extra spaces or characters"
+          echo "3. Proper line breaks"
+          exit 1
+        fi
         
         # Add EC2 host to known hosts
         ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not add host to known_hosts"
