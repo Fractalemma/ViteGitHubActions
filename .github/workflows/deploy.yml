@@ -42,9 +42,16 @@ jobs:
 
     - name: Setup SSH key
       if: github.ref == 'refs/heads/main'
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      run: |
+        # Create SSH directory
+        mkdir -p ~/.ssh
+        
+        # Add private key to a file
+        echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Add EC2 host to known hosts to avoid host key verification
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
     - name: Deploy to EC2
       if: github.ref == 'refs/heads/main'
@@ -53,13 +60,13 @@ jobs:
         EC2_USER: ${{ secrets.EC2_USER }}
       run: |
         # Copy deployment script to server
-        scp -o StrictHostKeyChecking=no ./scripts/deploy.sh $EC2_USER@$EC2_HOST:/tmp/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ./scripts/deploy.sh $EC2_USER@$EC2_HOST:/tmp/
         
         # Copy build archive to server
-        scp -o StrictHostKeyChecking=no ./my-vite-app/vite-build.tar.gz $EC2_USER@$EC2_HOST:/tmp/
+        scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ./my-vite-app/vite-build.tar.gz $EC2_USER@$EC2_HOST:/tmp/
         
         # Execute deployment script
-        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
 
     - name: Health check
       if: github.ref == 'refs/heads/main'
