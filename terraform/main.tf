@@ -22,16 +22,8 @@ resource "aws_security_group" "instance_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-    description = "Allow SSH from admin IP"
-  }
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = var.github_actions_ssh_cidrs
-    description = "Allow SSH from GitHub Actions runners"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow SSH from anywhere"
   }
 
   tags = {
