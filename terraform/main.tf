@@ -17,14 +17,15 @@ resource "aws_security_group" "instance_sg" {
     cidr_blocks = [var.allowed_http_cidr]
     description = "Allow HTTP from my IP"
   }
+
   tags = {
     Name = "${var.module_prefix}-sg"
   }
 }
 
-resource "aws_key_pair" "jro-key-pair" {
+resource "aws_key_pair" "admin" {
   key_name   = "${var.module_prefix}-key-pair"
-  public_key = file("~/.ssh/jro-key.pub")
+  public_key = file("${var.admin_public_key_path}")
 
   tags = {
     Name = "${var.module_prefix}-key-pair"
@@ -38,9 +39,13 @@ resource "aws_instance" "this" {
   subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.instance_sg.id]
   associate_public_ip_address = true
-  user_data                   = var.user_data
   iam_instance_profile        = var.iam_instance_profile
-  key_name                    = aws_key_pair.jro-key-pair.key_name
+  key_name                    = aws_key_pair.admin.key_name
+
+  user_data = templatefile("${path.module}/user-data.sh", {
+    ssh_pubkey = var.deploy_public_key
+  })
+
   tags = {
     Name = "${var.module_prefix}-instance"
   }
