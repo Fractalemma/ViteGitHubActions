@@ -34,10 +34,11 @@ sudo chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh/authorized_keys    
 sudo chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys                             # Secure permissions (owner read/write only)
 
 # ---------- Sudo permissions for deploy ----------
-# Grant specific sudo permissions to deploy user (principle of least privilege)
-# Only allows commands needed for deployment, not full root access
+# Grant deployment-specific sudo permissions to deploy user
+# Allows all commands needed for CI/CD deployment operations
 sudo tee /etc/sudoers.d/99-deploy <<'EOF'
-deploy ALL=(root) NOPASSWD: /bin/ln, /usr/bin/cp, /usr/bin/find, /usr/bin/chgrp, /usr/bin/chmod, /usr/bin/mkdir, /usr/bin/rm, /bin/systemctl reload nginx
+# Allow deploy user to run deployment commands without password
+deploy ALL=(root) NOPASSWD: /bin/mkdir, /usr/bin/mkdir, /bin/cp, /usr/bin/cp, /bin/rm, /usr/bin/rm, /bin/tar, /usr/bin/tar, /bin/find, /usr/bin/find, /bin/chgrp, /usr/bin/chgrp, /bin/chmod, /usr/bin/chmod, /bin/ln, /usr/bin/ln, /bin/systemctl reload nginx, /usr/bin/systemctl reload nginx, /bin/ls, /usr/bin/ls, /bin/xargs, /usr/bin/xargs
 EOF
 sudo chmod 440 /etc/sudoers.d/99-deploy  # Secure permissions (read-only for owner and group)
 
