@@ -47,40 +47,56 @@ jobs:
         mkdir -p ~/.ssh
         
         # Create the SSH key file with proper formatting
-        # GitHub secrets preserve line breaks, so we write directly
-        echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        # Use printf to preserve exact formatting and avoid trailing newlines
+        printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        
+        # Remove any trailing empty lines or whitespace
+        sed -i '/^[[:space:]]*$/d' ~/.ssh/deploy_key
         
         # Ensure proper permissions
         chmod 600 ~/.ssh/deploy_key
         
         # Verify the key file format
         echo "SSH key file size: $(wc -c < ~/.ssh/deploy_key) bytes"
+        echo "SSH key line count: $(wc -l < ~/.ssh/deploy_key) lines"
         
         # Check if the key starts and ends correctly
         first_line=$(head -n1 ~/.ssh/deploy_key)
         last_line=$(tail -n1 ~/.ssh/deploy_key)
         
-        echo "SSH key first line: ${first_line:0:20}..."
-        echo "SSH key last line: ${last_line:0:20}..."
+        echo "SSH key first line: ${first_line:0:30}..."
+        echo "SSH key last line: ${last_line:0:30}..."
+        
+        # Show the actual last few characters to debug
+        echo "Last 10 characters of file: '$(tail -c 10 ~/.ssh/deploy_key)'"
         
         # Validate the key format
         if [[ ! "$first_line" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
           echo "❌ SSH key doesn't start with proper BEGIN line!"
           echo "Expected: -----BEGIN [TYPE] PRIVATE KEY-----"
-          echo "Got: $first_line"
+          echo "Got: '$first_line'"
           exit 1
         fi
         
-        if [[ ! "$last_line" =~ ^-----END.*PRIVATE\ KEY----- ]]; then
+        # Check for common SSH key ending patterns
+        if [[ ! "$last_line" =~ ^-----END.*PRIVATE\ KEY-----$ ]]; then
           echo "❌ SSH key doesn't end with proper END line!"
           echo "Expected: -----END [TYPE] PRIVATE KEY-----"
-          echo "Got: $last_line"
+          echo "Got: '$last_line'"
+          echo ""
+          echo "🔍 Debugging info:"
+          echo "Total lines in key: $(wc -l < ~/.ssh/deploy_key)"
+          echo "Last 3 lines:"
+          tail -n3 ~/.ssh/deploy_key | cat -A
+          echo ""
+          echo "🔧 The key might have trailing whitespace or missing END line."
+          echo "Please copy the ENTIRE private key including the END line."
           exit 1
         fi
         
         # Test the SSH key format
-        if ! ssh-keygen -l -f ~/.ssh/deploy_key; then
-          echo "❌ SSH key format is invalid!"
+        if ! ssh-keygen -l -f ~/.ssh/deploy_key 2>/dev/null; then
+          echo "❌ SSH key format is invalid according to ssh-keygen!"
           echo ""
           echo "🔧 Please ensure your DEPLOY_SSH_PRIVATE_KEY secret contains:"
           echo "1. The complete private key from -----BEGIN to -----END"
