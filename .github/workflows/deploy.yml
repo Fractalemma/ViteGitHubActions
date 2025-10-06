@@ -136,30 +136,3 @@ jobs:
         # Execute deployment script
         echo "Executing deployment script on $EC2_USER@$EC2_HOST"
         ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
-
-    - name: Health check
-      if: github.ref == 'refs/heads/main'
-      env:
-        EC2_HOST: ${{ secrets.EC2_HOST }}
-      run: |
-        # Wait a moment for deployment to complete
-        sleep 10
-        
-        # Optional health check - don't fail the pipeline if this doesn't work
-        echo "🔍 Performing optional health check..."
-        response=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 15 http://$EC2_HOST || echo "000")
-        
-        if [ "$response" = "200" ]; then
-          echo "✅ Health check passed! Website is accessible."
-          echo "🌐 Visit: http://$EC2_HOST"
-        else
-          echo "⚠️  Health check failed (HTTP status: $response)"
-          echo "🔧 This might be due to:"
-          echo "   - Server still starting up"
-          echo "   - Firewall/security group settings"
-          echo "   - Network connectivity issues"
-          echo "🎯 Your deployment was successful - check manually: http://$EC2_HOST"
-        fi
-        
-        # Always exit successfully since deployment completed
-        exit 0

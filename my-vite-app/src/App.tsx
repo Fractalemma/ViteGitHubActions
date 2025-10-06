@@ -24,6 +24,13 @@ function App() {
         <p>
           By Emmanuel Romero
         </p>
+        <p>This is part of a simple pipeline with this tech stack:</p>
+        <ul>
+          <li>Vite + React</li>
+          <li>GitHub Actions</li>
+          <li>AWS EC2 (Amazon Linux)</li>
+          <li>Nginx</li>
+        </ul>
       </div>
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
