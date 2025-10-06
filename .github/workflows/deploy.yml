@@ -42,9 +42,62 @@ jobs:
 
     - name: Setup SSH key
       if: github.ref == 'refs/heads/main'
-      uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      run: |
+        # Create SSH directory
+        mkdir -p ~/.ssh
+        
+        # Create the SSH key file with proper formatting
+        # GitHub secrets preserve line breaks, so we write directly
+        echo "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+        
+        # Ensure proper permissions
+        chmod 600 ~/.ssh/deploy_key
+        
+        # Verify the key file format
+        echo "SSH key file size: $(wc -c < ~/.ssh/deploy_key) bytes"
+        
+        # Check if the key starts and ends correctly
+        first_line=$(head -n1 ~/.ssh/deploy_key)
+        last_line=$(tail -n1 ~/.ssh/deploy_key)
+        
+        echo "SSH key first line: ${first_line:0:20}..."
+        echo "SSH key last line: ${last_line:0:20}..."
+        
+        # Validate the key format
+        if [[ ! "$first_line" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
+          echo "❌ SSH key doesn't start with proper BEGIN line!"
+          echo "Expected: -----BEGIN [TYPE] PRIVATE KEY-----"
+          echo "Got: $first_line"
+          exit 1
+        fi
+        
+        if [[ ! "$last_line" =~ ^-----END.*PRIVATE\ KEY----- ]]; then
+          echo "❌ SSH key doesn't end with proper END line!"
+          echo "Expected: -----END [TYPE] PRIVATE KEY-----"
+          echo "Got: $last_line"
+          exit 1
+        fi
+        
+        # Test the SSH key format
+        if ! ssh-keygen -l -f ~/.ssh/deploy_key; then
+          echo "❌ SSH key format is invalid!"
+          echo ""
+          echo "🔧 Please ensure your DEPLOY_SSH_PRIVATE_KEY secret contains:"
+          echo "1. The complete private key from -----BEGIN to -----END"
+          echo "2. No extra spaces or characters before/after the key"
+          echo "3. Proper line breaks (copy the entire key including line breaks)"
+          echo "4. No trailing newlines or spaces"
+          echo ""
+          echo "To regenerate the key:"
+          echo "ssh-keygen -t rsa -b 4096 -C 'deploy@github-actions' -f deploy_key"
+          echo "Then copy the contents of deploy_key (private key) to the secret"
+          exit 1
+        fi
+        
+        echo "✅ SSH key format is valid"
+        
+        # Add EC2 host to known hosts
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || echo "Warning: Could not add host to known_hosts"
 
     - name: Deploy to EC2
       if: github.ref == 'refs/heads/main'
@@ -52,14 +105,21 @@ jobs:
         EC2_HOST: ${{ secrets.EC2_HOST }}
         EC2_USER: ${{ secrets.EC2_USER }}
       run: |
+        # Test SSH connection first
+        echo "Testing SSH connection to $EC2_USER@$EC2_HOST"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no -o ConnectTimeout=10 $EC2_USER@$EC2_HOST "echo 'SSH connection successful'"
+        
         # Copy deployment script to server
-        scp -o StrictHostKeyChecking=no ./scripts/deploy.sh $EC2_USER@$EC2_HOST:/tmp/
+        echo "Transferring deployment script to $EC2_USER@$EC2_HOST"
+        scp -v -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ./scripts/deploy.sh $EC2_USER@$EC2_HOST:/tmp/
         
         # Copy build archive to server
-        scp -o StrictHostKeyChecking=no ./my-vite-app/vite-build.tar.gz $EC2_USER@$EC2_HOST:/tmp/
+        echo "Transferring build archive to $EC2_USER@$EC2_HOST"
+        scp -v -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ./my-vite-app/vite-build.tar.gz $EC2_USER@$EC2_HOST:/tmp/
         
         # Execute deployment script
-        ssh -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
+        echo "Executing deployment script on $EC2_USER@$EC2_HOST"
+        ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no $EC2_USER@$EC2_HOST "chmod +x /tmp/deploy.sh && /tmp/deploy.sh"
 
     - name: Health check
       if: github.ref == 'refs/heads/main'
