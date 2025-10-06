@@ -18,6 +18,22 @@ resource "aws_security_group" "instance_sg" {
     description = "Allow HTTP from my IP"
   }
 
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = [var.allowed_ssh_cidr]
+    description = "Allow SSH from admin IP"
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = var.github_actions_ssh_cidrs
+    description = "Allow SSH from GitHub Actions runners"
+  }
+
   tags = {
     Name = "${var.module_prefix}-sg"
   }
