@@ -7,7 +7,7 @@ variable "aws_profile" {
 
 variable "allowed_ssh_cidr" {
   description = "CIDR allowed to SSH (22) for admin access. e.g., 203.0.113.25/32"
-  type        = string
+  type        = list(string)
 }
 
 variable "github_actions_ssh_cidrs" {
@@ -64,8 +64,8 @@ variable "subnet_id" {
 }
 
 variable "allowed_http_cidr" {
-  description = "The CIDR block allowed to access HTTP (port 80)."
-  type        = string
+  description = "The CIDR blocks allowed to access HTTP (port 80)."
+  type        = list(string)
 }
 
 variable "instance_type" {
