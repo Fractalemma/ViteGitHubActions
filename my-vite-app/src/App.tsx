@@ -35,7 +35,7 @@ function App() {
         <h1>Hello from another account</h1>
       </div>
       <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
+        Hello Brijesh
       </p>
     </>
   )
