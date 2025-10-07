@@ -32,6 +32,7 @@ function App() {
           <li>Nginx</li>
         </ul>
         <p>GitHub Actions SSH into EC2 instance for deployment</p>
+        <p>Hello from another account</p>
       </div>
       <p className="read-the-docs">
         Click on the Vite and React logos to learn more
