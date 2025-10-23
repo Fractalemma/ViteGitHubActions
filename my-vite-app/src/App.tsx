@@ -33,11 +33,7 @@ function App() {
         </ul>
         <p>Each push/pull request to main triggers the pipeline</p>
         <p>GitHub Actions SSH into EC2 instance for deployment</p>
-        <h1>Hello from another account</h1>
       </div>
-      <p className="read-the-docs">
-        Hello Brijesh
-      </p>
     </>
   )
 }
