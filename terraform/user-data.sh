@@ -4,6 +4,10 @@
 # It prepares the server for automated deployments from GitHub Actions
 
 # Exit on any error, treat unset variables as errors, fail on pipe errors
+# Note: set -euo pipefail enables strict error handling:
+# -e: Exit immediately if any command fails (non-zero exit code)
+# -u: Treat unset/undefined variables as errors and exit
+# -o pipefail: Make pipes fail if any command in the pipe fails (not just the last one)
 set -euo pipefail
 
 # Configuration variables
@@ -29,6 +33,12 @@ fi
 
 # Set up SSH access for the deploy user
 sudo install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" /home/$DEPLOY_USER/.ssh  # Create .ssh dir with secure permissions
+# sudo install - Uses the install command (more robust than mkdir for setting permissions atomically)
+# -d - Creates a directory instead of copying files
+# -m 700 - Sets permissions to 700 (read/write/execute for owner only, no access for group/others)
+# -o "$DEPLOY_USER" - Sets the owner to the deploy user
+# -g "$DEPLOY_USER" - Sets the group to the deploy user's group
+# /home/$DEPLOY_USER/.ssh - The target directory path
 echo "$SSH_PUBKEY" | sudo tee /home/$DEPLOY_USER/.ssh/authorized_keys              # Add public key for SSH access
 sudo chown $DEPLOY_USER:$DEPLOY_USER /home/$DEPLOY_USER/.ssh/authorized_keys       # Set proper ownership
 sudo chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys                             # Secure permissions (owner read/write only)
@@ -36,6 +46,11 @@ sudo chmod 600 /home/$DEPLOY_USER/.ssh/authorized_keys                          
 # ---------- Sudo permissions for deploy ----------
 # Grant deployment-specific sudo permissions to deploy user
 # Allows all commands needed for CI/CD deployment operations
+# Note: Using /etc/sudoers.d/99-deploy instead of /etc/sudoers for modularity and safety:
+# - Keeps custom rules separate from system defaults
+# - Prevents corruption of main sudoers file
+# - Easier to manage and remove specific permissions
+# - "99-" prefix ensures this file loads last (lexicographical order), giving it precedence
 sudo tee /etc/sudoers.d/99-deploy <<'EOF'
 # Allow deploy user to run deployment commands without password
 deploy ALL=(root) NOPASSWD: /bin/mkdir, /usr/bin/mkdir, /bin/cp, /usr/bin/cp, /bin/rm, /usr/bin/rm, /bin/tar, /usr/bin/tar, /bin/find, /usr/bin/find, /bin/chgrp, /usr/bin/chgrp, /bin/chmod, /usr/bin/chmod, /bin/ln, /usr/bin/ln, /bin/systemctl reload nginx, /usr/bin/systemctl reload nginx, /bin/ls, /usr/bin/ls, /bin/xargs, /usr/bin/xargs
@@ -70,8 +85,14 @@ sudo ln -sfn "$INIT_RELEASE" "$CURRENT_LINK"  # Create symlink: /var/www/html ->
 
 # Set proper permissions for nginx to serve files
 sudo chgrp -R nginx "$RELEASES_DIR"                              # Set group ownership to nginx
+# Note: These find commands set different permissions for directories vs files:
+# - Directories need execute permission (755) for nginx to traverse them
+# - Files only need read permission (644) for nginx to serve them
+# - The -exec option runs chmod once for each found item (not a pipe operation)
+# - {} is replaced with each file/directory path, \; terminates the -exec command
 sudo find "$RELEASES_DIR" -type d -exec chmod 755 {} \;          # Directories: read/write/execute for owner, read/execute for group/others
 sudo find "$RELEASES_DIR" -type f -exec chmod 644 {} \;          # Files: read/write for owner, read for group/others
+# chmod can be used using regex
 
 # ---------- Nginx SPA config ----------
 # Configure nginx for Single Page Application (SPA) hosting with performance optimizations
@@ -100,5 +121,7 @@ server {
 NGINX
 
 # Test nginx configuration and reload if valid
+# Note: nginx -t tests configuration syntax without affecting running service
+# Note: && ensures reload only happens if config test passes (prevents breaking nginx)
 sudo nginx -t && sudo systemctl reload nginx
 echo "User data completed successfully (Amazon Linux 2)."
